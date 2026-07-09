@@ -77,6 +77,43 @@ const TRANSLATIONS = {
     err_branch:       'Filialingizni tanlang',
     err_other_branch: 'Filial nomini kiriting',
     zoom_fit:        'Sig‘dirish',
+  },
+  ru: {
+    hero_sub:        'Присоединяйтесь к нам для незабываемого кинематографического опыта.<br/>Зарегистрируйтесь ниже, чтобы забронировать место.',
+    step_info:       'Ваши данные',
+    step_seat:       'Выбор места',
+    step_confirm:    'Подтверждение',
+    personal_info:   'Личная информация',
+    personal_sub:    'Заполните ваши данные, чтобы начать',
+    first_name:      'Имя',
+    last_name:       'Фамилия',
+    phone:           'Номер телефона',
+    eng_level:       'Уровень английского',
+    select_level:    'Выберите ваш уровень',
+    branch:          'Филиал',
+    other_branch:    'Укажите ваш филиал',
+    continue_btn:    'Перейти к выбору места',
+    choose_seat:     'Выберите ваше место',
+    seat_sub:        'На этой схеме показано расположение наших мест, выберите свободное место, которое вам нравится, и забронируйте его',
+    confirm_seat:    'Подтвердить место',
+    review_title:    'Проверка и отправка',
+    review_sub:      'Пожалуйста, проверьте ваши данные перед отправкой',
+    terms:           'Я подтверждаю правильность своих данных и соглашаюсь посетить мероприятие',
+    submit_btn:      'Отправить и получить билет',
+    success_title:   'Вы зарегистрированы!',
+    success_sub:     'Ваш билет загружен. Увидимся на Movie Day!',
+    download_again:  'Скачать билет снова',
+    register_another:'Зарегистрировать другого человека',
+    ph_first_name:   'Введите ваше имя',
+    ph_last_name:    'Введите вашу фамилию',
+    ph_other_branch: 'Введите название филиала',
+    err_first_name:   'Пожалуйста, введите ваше имя',
+    err_last_name:    'Пожалуйста, введите вашу фамилию',
+    err_phone:        'Пожалуйста, введите действительный номер телефона',
+    err_level:        'Пожалуйста, выберите ваш уровень английского',
+    err_branch:       'Пожалуйста, выберите ваш филиал',
+    err_other_branch: 'Пожалуйста, укажите название вашего филиала',
+    zoom_fit:        'Вместить',
   }
 };
 
@@ -86,6 +123,7 @@ function setLang(lang) {
   currentLang = lang;
   const t = TRANSLATIONS[lang];
   document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+  document.getElementById('btn-ru').classList.toggle('active', lang === 'ru');
   document.getElementById('btn-uz').classList.toggle('active', lang === 'uz');
 
   // Translate text nodes

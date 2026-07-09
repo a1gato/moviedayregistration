@@ -435,7 +435,7 @@ function showTicketModalFor(r) {
         <div class="pt-item"><div class="pt-label">English Level</div><div class="pt-value">${escapeHTML(r.english_level) || '—'}</div></div>
         <div class="pt-item"><div class="pt-label">Branch</div><div class="pt-value">${escapeHTML(r.branch)}</div></div>
         <div class="pt-item"><div class="pt-label">Seat</div><div class="pt-value">${escapeHTML(seat)}</div></div>
-        <div class="pt-item"><div class="pt-label">Date</div><div class="pt-value">Sunday, July 5, 2026</div></div>
+        <div class="pt-item"><div class="pt-label">Date</div><div class="pt-value">Sunday, July 12, 2026</div></div>
         <div class="pt-item"><div class="pt-label">Registered</div><div class="pt-value">${escapeHTML(date)}</div></div>
       </div>
       <hr class="pt-divider"/>
@@ -479,7 +479,7 @@ function downloadCurrentTicket() {
     ['BRANCH', r.branch],
     ['LEVEL', r.english_level || '—'],
     ['SEAT', r.seat ? formatSeatForDisplay(r.seat) : '—'],
-    ['DATE', 'Sunday, July 5, 2026'],
+    ['DATE', 'Sunday, July 12, 2026'],
   ];
   let y = 38;
   details.forEach(([label, val]) => {
@@ -558,7 +558,7 @@ function renderTicketsList() {
           </div>
           <div class="ticket-field">
             <span class="ticket-label">Date</span>
-            <span class="ticket-value">July 5, 2026</span>
+            <span class="ticket-value">July 12, 2026</span>
           </div>
         </div>
         <div class="ticket-footer">

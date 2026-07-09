@@ -139,6 +139,12 @@ function setLang(lang) {
   });
 }
 
+function selectInitialLang(lang) {
+  setLang(lang);
+  const modal = document.getElementById('initialLangModal');
+  if (modal) modal.classList.add('hidden');
+}
+
 // ── Phone auto-formatter ──────────────────────────────────────
 // Formats digits as: 99 111 11 22  (max 10 digits)
 function formatPhone(input) {

@@ -38,6 +38,41 @@
 </head>
 <body>
 
+<!-- INITIAL LANGUAGE MODAL -->
+<div id="initialLangModal" class="lang-modal-overlay">
+  <div class="lang-modal-box">
+    <span class="lang-modal-icon">🎬</span>
+    <h2>Movie Day 2026</h2>
+    <p>Please choose your preferred language to continue</p>
+    <div class="lang-modal-options">
+      <button class="lang-option-btn" onclick="selectInitialLang('en')">
+        <span class="lang-flag" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:0.78rem;font-weight:800;flex-shrink:0;color:#fff;">EN</span>
+        <span class="lang-info">
+          <span class="lang-name">English</span>
+          <span class="lang-native">Continue in English</span>
+        </span>
+        <span class="lang-code">EN</span>
+      </button>
+      <button class="lang-option-btn" onclick="selectInitialLang('ru')">
+        <span class="lang-flag" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:0.78rem;font-weight:800;flex-shrink:0;color:#fff;">RU</span>
+        <span class="lang-info">
+          <span class="lang-name">Русский</span>
+          <span class="lang-native">Продолжить на русском</span>
+        </span>
+        <span class="lang-code">RU</span>
+      </button>
+      <button class="lang-option-btn" onclick="selectInitialLang('uz')">
+        <span class="lang-flag" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:0.78rem;font-weight:800;flex-shrink:0;color:#fff;">UZ</span>
+        <span class="lang-info">
+          <span class="lang-name">O'zbekcha</span>
+          <span class="lang-native">O'zbek tilida davom etish</span>
+        </span>
+        <span class="lang-code">UZ</span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Language Switcher -->
 <div class="lang-switcher">
   <button class="lang-btn active" onclick="setLang('en')" id="btn-en">EN</button>

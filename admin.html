@@ -131,17 +131,7 @@
         <span>Statistics</span>
       </button>
 
-      <!-- QR code icon -->
-      <button class="nav-btn" onclick="showTab('qr',this)">
-        <span class="nav-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-            <rect x="3" y="14" width="7" height="7" rx="1"/>
-            <path d="M14 14h.01"/><path d="M18 14h.01"/><path d="M14 18h.01"/><path d="M18 18h.01"/>
-          </svg>
-        </span>
-        <span>QR Code</span>
-      </button>
+
     </nav>
 
     <div class="sidebar-footer">
@@ -434,31 +424,7 @@
         </section>
       </div>
 
-      <!-- ─── QR CODE ─── -->
-      <div id="tab-qr" class="tab-pane" style="display:none;">
-        <section class="panel qr-panel">
-          <div class="panel-top">
-            <div>
-              <h2 class="panel-title">QR Code &amp; Share Links</h2>
-              <p class="panel-sub">Scan to open the registration form</p>
-            </div>
-            <button class="btn-primary" onclick="downloadQR()" style="display:flex;align-items:center;gap:7px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Download QR
-            </button>
-          </div>
-          <div class="qr-body">
-            <div class="qr-box">
-              <div id="qrCanvas"></div>
-              <div id="qrUrl" class="qr-url"></div>
-            </div>
-            <div class="qr-links">
-              <p class="stats-heading">SHARE LINKS</p>
-              <div id="shareLinks" class="share-list"></div>
-            </div>
-          </div>
-        </section>
-      </div>
+
 
     </main>
   </div>

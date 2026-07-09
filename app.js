@@ -57,7 +57,7 @@ const TRANSLATIONS = {
     other_branch:    'Filialni ko\'rsating',
     continue_btn:    'Joy tanlashga o\'tish',
     choose_seat:     'Joyingizni tanlang',
-    seat_sub:        'Bo\'sh joyni tanlash uchun bosing',
+    seat_sub:        'Bu sxemada bizning o\\'rindiqlar joylashuvi kursatilgan va siz uzingizga maqul bulgan bush urindiqni tanlang va uz joyingizni band qiling',
     confirm_seat:    'Joyni tasdiqlash',
     review_title:    'Ko\'rib chiqish va yuborish',
     review_sub:      'Yuborishdan oldin ma\'lumotlaringizni tekshiring',

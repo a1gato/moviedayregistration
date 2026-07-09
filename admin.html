@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Panel – Movie Day 2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <link rel="stylesheet" href="admin.css" />
+  <style>
+    /* Inline SVG icon sizing helper */
+    .nav-icon svg { width:17px; height:17px; display:block; flex-shrink:0; }
+    .brand-icon svg { width:20px; height:20px; display:block; }
+    .search-icon svg { width:15px; height:15px; display:block; opacity:.45; }
+    .btn-icon svg { width:14px; height:14px; display:block; flex-shrink:0; }
+    .pill-icon svg { width:12px; height:12px; display:block; flex-shrink:0; }
+    .modal-close svg { width:14px; height:14px; display:block; }
+    .share-link-icon svg { width:15px; height:15px; display:block; }
+  </style>
+</head>
+<body class="admin-body">
+
+<!-- Full-screen cinematic background -->
+<div class="bg-layer">
+  <img src="background.png" alt="" />
+  <div class="bg-overlay"></div>
+</div>
+
+<!-- ═══════════════════ LOGIN OVERLAY ═══════════════════ -->
+<div id="loginOverlay" class="login-overlay">
+  <div class="login-card">
+    <!-- Shield / lock icon -->
+    <div class="login-icon">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="color:#fb923c">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <rect x="9" y="11" width="6" height="5" rx="1"/>
+        <circle cx="12" cy="10" r="1.5"/>
+      </svg>
+    </div>
+    <h2>Admin Access</h2>
+    <p>Enter the admin password to continue</p>
+    <input type="password" id="adminPass" class="login-input" placeholder="Password ••••••••"
+           onkeydown="if(event.key==='Enter')checkLogin()" />
+    <button class="btn-primary login-btn" onclick="checkLogin()">
+      Sign In
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+    </button>
+    <div id="loginError" class="login-error">Incorrect password. Try again.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════ OS WINDOW ═══════════════════ -->
+<div id="adminApp" class="os-window" style="display:none;">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <!-- Film / clapperboard icon -->
+      <span class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#fb923c">
+          <rect x="2" y="7" width="20" height="15" rx="2"/>
+          <polyline points="17 2 12 7 7 2"/>
+          <line x1="12" y1="12" x2="12" y2="17"/>
+          <line x1="9" y1="14.5" x2="15" y2="14.5"/>
+        </svg>
+      </span>
+      <span class="brand-text">Admin</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <!-- Users icon -->
+      <button class="nav-btn active" onclick="showTab('registrations',this)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </span>
+        <span>Registrations</span>
+      </button>
+
+      <!-- Grid / seat icon -->
+      <button class="nav-btn" onclick="showTab('seats',this)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+        </span>
+        <span>Seat Map</span>
+      </button>
+
+      <!-- Tickets icon -->
+      <button class="nav-btn" onclick="showTab('tickets',this)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="16" rx="2"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+            <line x1="8" y1="14" x2="8" y2="16"/>
+            <line x1="12" y1="14" x2="16" y2="14"/>
+          </svg>
+        </span>
+        <span>Tickets List</span>
+      </button>
+
+      <!-- Designer icon -->
+      <button class="nav-btn" onclick="showTab('designer',this)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+            <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+            <path d="M2 2l7.586 7.586"></path>
+            <circle cx="11" cy="11" r="2"></circle>
+          </svg>
+        </span>
+        <span>Ticket Designer</span>
+      </button>
+
+      <!-- Bar chart icon -->
+      <button class="nav-btn" onclick="showTab('stats',this)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/>
+          </svg>
+        </span>
+        <span>Statistics</span>
+      </button>
+
+      <!-- QR code icon -->
+      <button class="nav-btn" onclick="showTab('qr',this)">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <path d="M14 14h.01"/><path d="M18 14h.01"/><path d="M14 18h.01"/><path d="M18 18h.01"/>
+          </svg>
+        </span>
+        <span>QR Code</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <!-- Home icon -->
+      <a href="index.html" class="nav-btn nav-btn-muted">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </span>
+        <span>Back to Site</span>
+      </a>
+      <!-- Logout / exit icon -->
+      <button class="nav-btn nav-btn-muted" onclick="logout()">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </span>
+        <span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── Main Desktop ── -->
+  <div class="os-desktop">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="live-badge">
+          <svg width="8" height="8" viewBox="0 0 8 8" style="display:inline-block;vertical-align:middle;margin-right:4px">
+            <circle cx="4" cy="4" r="4" fill="#22c55e"/>
+          </svg>
+          LIVE
+        </span>
+        <h1 class="topbar-title">Movie Day 2026</h1>
+      </div>
+      <div class="topbar-center">
+        <div class="search-wrap">
+          <span class="search-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </span>
+          <input type="text" id="searchInput" class="topbar-search"
+                 placeholder="Search attendee, ticket, phone..."
+                 oninput="filterTable()" />
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="profile-chip">
+          <div class="profile-av">AD</div>
+          <div>
+            <div class="profile-name">Admin Operator</div>
+            <div class="profile-email">admin@movieday.com</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Tab Area -->
+    <main class="tab-area">
+
+      <!-- ─── REGISTRATIONS ─── -->
+      <div id="tab-registrations" class="tab-pane active-pane">
+        <div class="reg-grid">
+
+          <!-- Left: Table -->
+          <section class="panel table-panel">
+            <div class="panel-top">
+              <div>
+                <h2 class="panel-title">All Registrations</h2>
+                <p class="panel-sub">Attendee list for Movie Day 2026</p>
+              </div>
+              <div class="panel-actions">
+                <!-- Download icon -->
+                <button class="btn-primary" onclick="exportCSV()" style="display:flex;align-items:center;gap:7px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Export CSV
+                </button>
+                <!-- Refresh icon -->
+                <button class="btn-ghost" onclick="loadRegistrations()" style="display:flex;align-items:center;gap:7px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            <div class="filter-pills">
+              <button class="pill active" onclick="filterBranch('all',this)">All</button>
+              <!-- Lightning bolt icon -->
+              <button class="pill" onclick="filterBranch('Fast Education',this)" style="display:inline-flex;align-items:center;gap:5px;">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Fast Education
+              </button>
+              <!-- Academic cap / graduation icon -->
+              <button class="pill" onclick="filterBranch('Oxford International School',this)" style="display:inline-flex;align-items:center;gap:5px;">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+                Oxford Int'l
+              </button>
+              <!-- Globe icon -->
+              <button class="pill" onclick="filterBranch('other',this)" style="display:inline-flex;align-items:center;gap:5px;">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                Other
+              </button>
+            </div>
+
+            <div class="table-scroll">
+              <table id="regTable">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Level</th>
+                    <th>Branch</th>
+                    <th>Seat</th>
+                    <th>Ticket ID</th>
+                    <th>Registered</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="regBody">
+                  <tr><td colspan="9" class="empty-row">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- Right: Stats -->
+          <aside class="stats-side">
+            <div class="stats-panel">
+              <p class="stats-heading">SYSTEM OVERVIEW</p>
+              <div id="quickStats" class="quick-stats"></div>
+            </div>
+            <div class="stats-panel" id="statsCards"></div>
+          </aside>
+
+        </div>
+      </div>
+
+      <!-- ─── SEAT MAP ─── -->
+      <div id="tab-seats" class="tab-pane" style="display:none;">
+        <section class="panel seat-panel">
+          <div class="panel-top">
+            <div>
+              <h2 class="panel-title">Seat Map</h2>
+              <p class="panel-sub">Real-time cinema seat occupancy</p>
+            </div>
+            <button class="btn-ghost" onclick="loadRegistrations()" style="display:flex;align-items:center;gap:7px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Refresh
+            </button>
+          </div>
+          <div class="seat-legend">
+            <div class="legend-item"><div class="legend-dot available-regular"></div>Available (Regular)</div>
+            <div class="legend-item"><div class="legend-dot available-vip"></div>Available (VIP)</div>
+            <div class="legend-item"><div class="legend-dot taken"></div>Taken</div>
+          </div>
+          <!-- Screen banner with monitor icon -->
+          <div class="screen-banner">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:6px"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            SCREEN
+          </div>
+          <div class="seat-map-scroll-container">
+            <div class="seat-map-inner">
+              <div class="seat-area" id="adminSeatMap"></div>
+              <div class="entrance-wrap">
+                <div class="entrance-doors">
+                  <div class="door"></div>
+                  <div class="door"></div>
+                </div>
+                <div class="entrance-label">ENTRANCE</div>
+              </div>
+            </div>
+          </div>
+          <p id="seatSummary" class="seat-summary"></p>
+        </section>
+      </div>
+
+      <!-- ─── TICKETS LIST ─── -->
+      <div id="tab-tickets" class="tab-pane" style="display:none;">
+        <section class="panel tickets-panel">
+          <div class="panel-top">
+            <div>
+              <h2 class="panel-title">Printable Tickets</h2>
+              <p class="panel-sub">Preview and print all customer tickets on A4 pages</p>
+            </div>
+            <div class="panel-actions">
+              <button class="btn-primary" onclick="printAllTickets()" style="display:flex;align-items:center;gap:7px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Print All Tickets
+              </button>
+            </div>
+          </div>
+
+          <div class="tickets-preview-scroll">
+            <div id="ticketsGrid" class="tickets-grid">
+              <div style="text-align:center;color:rgba(255,255,255,0.25);padding:48px 16px;">Loading tickets…</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ─── TICKET DESIGNER ─── -->
+      <div id="tab-designer" class="tab-pane" style="display:none;">
+        <section class="panel designer-panel">
+          <div class="panel-top">
+            <div>
+              <h2 class="panel-title">Ticket Designer</h2>
+              <p class="panel-sub">Build your custom ticket template dynamically</p>
+            </div>
+            <div class="panel-actions">
+               <button class="btn-ghost" onclick="flipDesign('x')" style="display:flex;align-items:center;gap:7px;" title="Flip Horizontally">
+                Flip X
+              </button>
+               <button class="btn-ghost" onclick="flipDesign('y')" style="display:flex;align-items:center;gap:7px;" title="Flip Vertically">
+                Flip Y
+              </button>
+               <button class="btn-ghost" onclick="loadJumanjiPreset()" style="display:flex;align-items:center;gap:7px;" title="Load Jumanji Design Preset">
+                Jumanji Preset
+              </button>
+               <button class="btn-ghost" onclick="resetDesigner()" style="display:flex;align-items:center;gap:7px;">
+                Reset
+              </button>
+              <button class="btn-ghost" onclick="printSingleCustomTicket(0)" style="display:flex;align-items:center;gap:7px;">
+                Test Print
+              </button>
+              <button class="btn-primary" onclick="saveDesign()" style="display:flex;align-items:center;gap:7px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                Save Design
+              </button>
+            </div>
+          </div>
+          
+          <div class="designer-workspace">
+             <div class="designer-toolbar">
+                <p class="stats-heading">BACKGROUND</p>
+                <input type="file" id="bgUpload" accept="image/png, image/jpeg" style="display:none;" onchange="handleBgUpload(event)">
+                <button class="btn-ghost" style="width:100%; margin-bottom:15px" onclick="document.getElementById('bgUpload').click()">Upload Image</button>
+                
+                <p class="stats-heading">CANVAS SIZE</p>
+                <div style="display:flex; gap:10px; margin-bottom:15px; align-items:flex-end;">
+                  <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+                    <label style="font-size:0.7rem; color:#888; margin-bottom:2px;">Width</label>
+                    <input type="number" id="canvas-width" class="login-input" style="padding:4px; font-size:0.8rem; width:100%; box-sizing:border-box;" onchange="updateCanvasSize()" value="800">
+                  </div>
+                  <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+                    <label style="font-size:0.7rem; color:#888; margin-bottom:2px; line-height:1.1;">Height (226 = 5/page)</label>
+                    <input type="number" id="canvas-height" class="login-input" style="padding:4px; font-size:0.8rem; width:100%; box-sizing:border-box;" onchange="updateCanvasSize()" value="226">
+                  </div>
+                </div>
+                
+                <div style="margin: 15px 0;">
+                  <p class="stats-heading" style="margin-bottom: 8px;">ELEMENTS</p>
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="btn-xs" style="padding:4px 10px; flex:1; text-align:center;" onclick="addDesignerElement('text')">+ Text</button>
+                    <button class="btn-xs" style="padding:4px 10px; flex:1; text-align:center;" onclick="addDesignerElement('rect')">+ Rect</button>
+                    <button class="btn-xs" style="padding:4px 10px; flex:1; text-align:center;" onclick="addDesignerElement('circle')">+ Circ</button>
+                    <button class="btn-xs" style="padding:4px 10px; flex:1; text-align:center;" onclick="addDesignerElement('triangle')">+ Tri</button>
+                    <button class="btn-xs" style="padding:4px 10px; flex:1; text-align:center;" onclick="promptDesignerImage()">+ Img</button>
+                  </div>
+                </div>
+                <div id="elementsList" class="elements-list">
+                    <!-- Elements will be generated here -->
+                </div>
+             </div>
+             
+             <div class="designer-canvas-container">
+                 <div id="ticketCanvas" class="ticket-canvas">
+                     <!-- Background image and draggable text elements will go here -->
+                 </div>
+             </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ─── STATS ─── -->
+      <div id="tab-stats" class="tab-pane" style="display:none;">
+        <section class="panel stats-full-panel">
+          <div class="panel-top">
+            <div>
+              <h2 class="panel-title">Event Statistics</h2>
+              <p class="panel-sub">Full breakdown of branches and English levels</p>
+            </div>
+          </div>
+          <div id="statsCardsSecondary" class="stats-full-grid"></div>
+        </section>
+      </div>
+
+      <!-- ─── QR CODE ─── -->
+      <div id="tab-qr" class="tab-pane" style="display:none;">
+        <section class="panel qr-panel">
+          <div class="panel-top">
+            <div>
+              <h2 class="panel-title">QR Code &amp; Share Links</h2>
+              <p class="panel-sub">Scan to open the registration form</p>
+            </div>
+            <button class="btn-primary" onclick="downloadQR()" style="display:flex;align-items:center;gap:7px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download QR
+            </button>
+          </div>
+          <div class="qr-body">
+            <div class="qr-box">
+              <div id="qrCanvas"></div>
+              <div id="qrUrl" class="qr-url"></div>
+            </div>
+            <div class="qr-links">
+              <p class="stats-heading">SHARE LINKS</p>
+              <div id="shareLinks" class="share-list"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ═══════════════════ PRINT MODAL ═══════════════════ -->
+<div id="printModal" class="modal-bg hidden">
+  <div class="modal-box">
+    <!-- Close X icon -->
+    <button class="modal-close" onclick="closePrintModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+    <div class="print-ticket" id="printTicketContent"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closePrintModal()">Close</button>
+      <!-- Printer icon -->
+      <button class="btn-primary" onclick="printCurrentTicket()" style="display:flex;align-items:center;gap:7px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Print
+      </button>
+      <!-- Download icon -->
+      <button class="btn-primary" onclick="downloadCurrentTicket()" style="display:flex;align-items:center;gap:7px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        PDF
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="printAllContainer"></div>
+
+<div id="toast"></div>
+
+<script src="supabase-config.js"></script>
+<script src="admin.js?v=8"></script>
+</body>
+</html>

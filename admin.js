@@ -34,12 +34,29 @@ const BLOCKS = [
 ];
 const TOTAL_SEATS = 186;
 
+// Build global seat number map (1–186) across all blocks in order
+const SEAT_NUMBERS = {};
+(function buildSeatNumbers() {
+  let counter = 1;
+  BLOCKS.forEach(blockRow => {
+    blockRow.forEach(block => {
+      for (let r = 1; r <= block.rows; r++) {
+        for (let c = 1; c <= block.cols; c++) {
+          SEAT_NUMBERS[`${block.id}-${r}-${c}`] = counter++;
+        }
+      }
+    });
+  });
+})();
+
 function formatSeatForDisplay(seatId) {
   if (!seatId) return '—';
+  const num = SEAT_NUMBERS[seatId];
+  if (num !== undefined) return `Seat #${num}`;
   const parts = seatId.split('-');
   if (parts.length < 3) return seatId;
   const [blockId, row, col] = parts;
-  return `${blockId} - R${row} - S${col}`; // e.g. L1-R1-S1
+  return `${blockId} - R${row} - S${col}`;
 }
 const REGISTRATION_URL = window.location.origin + window.location.pathname.replace('admin.html','') + 'index.html';
 
@@ -255,14 +272,10 @@ function createAdminBlockEl(block, taken) {
   titleEl.textContent = block.name;
   blockEl.appendChild(titleEl);
 
+  // Hide col headers — seats now show global numbers
   const colHeadersEl = document.createElement('div');
   colHeadersEl.className = 'block-col-headers';
-  for (let c = 1; c <= block.cols; c++) {
-    const colHeader = document.createElement('div');
-    colHeader.className = 'col-header';
-    colHeader.textContent = c;
-    colHeadersEl.appendChild(colHeader);
-  }
+  colHeadersEl.style.display = 'none';
   blockEl.appendChild(colHeadersEl);
 
   const rowsEl = document.createElement('div');
@@ -272,19 +285,20 @@ function createAdminBlockEl(block, taken) {
     const rowLine = document.createElement('div');
     rowLine.className = 'block-row-item';
 
+    // Hide row label — seats now show global numbers
     const rowLabel = document.createElement('div');
     rowLabel.className = 'block-row-label';
-    rowLabel.textContent = r;
+    rowLabel.style.display = 'none';
     rowLine.appendChild(rowLabel);
 
     for (let c = 1; c <= block.cols; c++) {
       const id = `${block.id}-${r}-${c}`;
+      const globalNum = SEAT_NUMBERS[id];
       const seat = document.createElement('div');
       seat.className = 'seat' + (block.vip ? ' vip' : ' regular');
-      seat.textContent = c;
-      
-      const friendlyName = block.name.replace(' · VIP', '');
-      const seatLabel = `${friendlyName}, Row ${r}, Seat ${c}`;
+      seat.textContent = globalNum;
+
+      const seatLabel = `Seat #${globalNum}`;
 
       if (taken.has(id)) {
         seat.classList.add('taken');
@@ -667,13 +681,13 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
          if (!el.type || el.type === 'text') {
              let text = el.text;
              let seatStr = r.seat ? formatSeatForDisplay(r.seat) : '—';
-             let seatBlock = '—', seatRow = '—', seatNum = '—';
+             const globalSeatNum = r.seat ? (SEAT_NUMBERS[r.seat] || '—') : '—';
+             let seatBlock = '—', seatRow = '—', seatNum = String(globalSeatNum);
              if (r.seat) {
                  const parts = r.seat.split('-');
                  if (parts.length >= 3) {
                      seatBlock = parts[0];
                      seatRow = parts[1];
-                     seatNum = parts[2];
                  } else {
                      seatBlock = r.seat;
                  }

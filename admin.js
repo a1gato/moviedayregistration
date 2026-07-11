@@ -599,7 +599,21 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
     return;
   }
 
-  showToast(`Generating ${ticketsToPrint.length} ticket(s)… please wait.`, 'info');
+  const total = ticketsToPrint.length;
+
+  // Show blocking overlay with progress bar
+  const overlay     = document.getElementById('pdfOverlay');
+  const progressBar = document.getElementById('pdfProgressBar');
+  const progressTxt = document.getElementById('pdfProgressText');
+  const setProgress = (done) => {
+    const pct = Math.round((done / total) * 100);
+    if (progressBar) progressBar.style.width = pct + '%';
+    if (progressTxt) progressTxt.textContent = `${done} of ${total} tickets rendered…`;
+  };
+  if (overlay) { overlay.style.display = 'flex'; setProgress(0); }
+
+  // Yield main thread helper — lets the browser repaint between tickets
+  const yield_ = () => new Promise(res => requestAnimationFrame(res));
 
   const { jsPDF } = window.jspdf;
   const A4_WIDTH_PT  = 595.28;
@@ -609,7 +623,6 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
   const ticketsPerPage = Math.max(1, Math.floor((A4_HEIGHT_PT + GAP_PT) / (ticketHeightPt + GAP_PT)));
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
 
-  // Wait for fonts ONCE upfront
   await document.fonts.ready;
 
   function resolveText(text, r) {
@@ -695,7 +708,7 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
 
     wrapper.appendChild(container);
     document.body.appendChild(wrapper);
-    await new Promise(res => setTimeout(res, 80));
+    await new Promise(res => setTimeout(res, 60));
 
     try {
       const canvas = await html2canvas(container, {
@@ -716,38 +729,44 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
   }
 
   let success = 0;
-  for (let i = 0; i < ticketsToPrint.length; i++) {
-    const r = ticketsToPrint[i];
-    if (i > 0 && i % ticketsPerPage === 0) doc.addPage();
+  try {
+    for (let i = 0; i < ticketsToPrint.length; i++) {
+      const r = ticketsToPrint[i];
+      if (i > 0 && i % ticketsPerPage === 0) doc.addPage();
 
-    const posOnPage = i % ticketsPerPage;
-    const yPt = posOnPage * (ticketHeightPt + GAP_PT);
+      const posOnPage = i % ticketsPerPage;
+      const yPt = posOnPage * (ticketHeightPt + GAP_PT);
 
-    if (posOnPage > 0) {
-      doc.setDrawColor(160,160,160); doc.setLineWidth(0.5);
-      doc.setLineDash([8,4],0);
-      doc.line(0, yPt - GAP_PT/2, A4_WIDTH_PT, yPt - GAP_PT/2);
-      doc.setLineDash([],0);
-    }
-
-    try {
-      const imgData = await renderTicketToImage(r);
-      doc.addImage(imgData, 'JPEG', 0, yPt, A4_WIDTH_PT, ticketHeightPt, undefined, 'FAST');
-      success++;
-      if (ticketsToPrint.length > 5 && (i+1) % 5 === 0) {
-        showToast(`Progress: ${i+1}/${ticketsToPrint.length} tickets rendered…`, 'info');
+      if (posOnPage > 0) {
+        doc.setDrawColor(160,160,160); doc.setLineWidth(0.5);
+        doc.setLineDash([8,4],0);
+        doc.line(0, yPt - GAP_PT/2, A4_WIDTH_PT, yPt - GAP_PT/2);
+        doc.setLineDash([],0);
       }
-    } catch(err) {
-      console.error('Ticket render failed:', r.ticket_id, err);
-    }
-  }
 
-  if (success === 0) {
-    showToast('PDF generation failed. Check browser console for errors.', 'error');
-    return;
+      try {
+        const imgData = await renderTicketToImage(r);
+        doc.addImage(imgData, 'JPEG', 0, yPt, A4_WIDTH_PT, ticketHeightPt, undefined, 'FAST');
+        success++;
+        setProgress(success);
+      } catch(err) {
+        console.error('Ticket render failed:', r.ticket_id, err);
+      }
+
+      // Yield to the browser so the UI stays responsive & overlay can repaint
+      await yield_();
+    }
+
+    if (success === 0) {
+      showToast('PDF generation failed. Check browser console for errors.', 'error');
+      return;
+    }
+    doc.save(total === 1 ? 'Custom_Ticket.pdf' : 'All_Custom_Tickets.pdf');
+    showToast(`Done! ${success}/${total} tickets generated.`, 'success');
+  } finally {
+    // Always hide the overlay, even on error
+    if (overlay) overlay.style.display = 'none';
   }
-  doc.save(ticketsToPrint.length === 1 ? 'Custom_Ticket.pdf' : 'All_Custom_Tickets.pdf');
-  showToast(`Done! ${success}/${ticketsToPrint.length} tickets generated.`, 'success');
 }
 
 function printAllTickets() {

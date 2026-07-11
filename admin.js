@@ -600,67 +600,69 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
   }
 
   const total = ticketsToPrint.length;
-
-  // Show blocking overlay with progress bar
   const overlay     = document.getElementById('pdfOverlay');
   const progressBar = document.getElementById('pdfProgressBar');
   const progressTxt = document.getElementById('pdfProgressText');
-  const setProgress = (done) => {
+  const setProgress = (done, label) => {
     const pct = Math.round((done / total) * 100);
     if (progressBar) progressBar.style.width = pct + '%';
-    if (progressTxt) progressTxt.textContent = `${done} of ${total} tickets rendered…`;
+    if (progressTxt) progressTxt.textContent = label || `${done} of ${total} tickets…`;
   };
-  if (overlay) { overlay.style.display = 'flex'; setProgress(0); }
+  if (overlay) { overlay.style.display = 'flex'; setProgress(0, 'Rendering template…'); }
 
-  // Yield main thread helper — lets the browser repaint between tickets
   const yield_ = () => new Promise(res => requestAnimationFrame(res));
 
   const { jsPDF } = window.jspdf;
   const A4_WIDTH_PT  = 595.28;
   const A4_HEIGHT_PT = 841.89;
   const GAP_PT = 4;
-  const ticketHeightPt = (currentDesign.canvasHeight / currentDesign.canvasWidth) * A4_WIDTH_PT;
+  const W = currentDesign.canvasWidth;
+  const H = currentDesign.canvasHeight;
+  const SCALE = 2;
+  const ticketHeightPt = (H / W) * A4_WIDTH_PT;
   const ticketsPerPage = Math.max(1, Math.floor((A4_HEIGHT_PT + GAP_PT) / (ticketHeightPt + GAP_PT)));
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
 
+  // Wait for fonts once upfront (ensures Roboto Cyrillic is ready for Canvas API)
   await document.fonts.ready;
+
+  // Placeholders that change per-ticket
+  const TOKENS = ['{first_name}','{last_name}','{phone}','{branch}','{level}','{seat}','{block}','{row}','{seat_num}','{ticket_id}'];
+  const isDynamic = el => (!el.type || el.type === 'text') && TOKENS.some(t => (el.text||'').includes(t));
 
   function resolveText(text, r) {
     const seat = r.seat || '';
     const parts = seat.split('-');
-    const seatBlock = parts[0] || '—';
-    const seatRow   = parts[1] || '—';
-    const globalNum = seat ? (SEAT_NUMBERS[seat] || '—') : '—';
-    const seatStr   = seat ? formatSeatForDisplay(seat) : '—';
     return text
       .replace('{first_name}', r.first_name || '')
       .replace('{last_name}',  r.last_name  || '')
       .replace('{phone}',      r.phone      || '')
       .replace('{branch}',     r.branch     || '')
       .replace('{level}',      r.english_level || '')
-      .replace('{seat}',       seatStr)
-      .replace('{block}',      seatBlock)
-      .replace('{row}',        seatRow)
-      .replace('{seat_num}',   String(globalNum))
-      .replace('{ticket_id}',  r.ticket_id  || '');
+      .replace('{seat}',       seat ? formatSeatForDisplay(seat) : '—')
+      .replace('{block}',      parts[0] || '—')
+      .replace('{row}',        parts[1] || '—')
+      .replace('{seat_num}',   seat ? String(SEAT_NUMBERS[seat] || '—') : '—')
+      .replace('{ticket_id}',  r.ticket_id || '');
   }
 
-  async function renderTicketToImage(r) {
+  // ── STEP 1: Render background + static elements ONCE via html2canvas ──────────
+  let baseCanvas;
+  try {
     const wrapper = document.createElement('div');
-    wrapper.style.cssText = `position:fixed;top:0;left:0;z-index:-9999;opacity:0;pointer-events:none;overflow:hidden;width:${currentDesign.canvasWidth}px;height:${currentDesign.canvasHeight}px;`;
-
+    wrapper.style.cssText = `position:fixed;top:0;left:0;z-index:-9999;opacity:0;pointer-events:none;overflow:hidden;width:${W}px;height:${H}px;`;
     const container = document.createElement('div');
-    container.style.cssText = `position:relative;width:${currentDesign.canvasWidth}px;height:${currentDesign.canvasHeight}px;overflow:hidden;background:#1a202c;font-family:"Roboto","Helvetica Neue",Arial,sans-serif;`;
+    container.style.cssText = `position:relative;width:${W}px;height:${H}px;overflow:hidden;background:#1a202c;`;
 
     if (currentDesign.bgImage) {
       const bg = document.createElement('img');
-      bg.src = currentDesign.bgImage;
-      bg.crossOrigin = 'anonymous';
+      bg.src = currentDesign.bgImage; bg.crossOrigin = 'anonymous';
       bg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;';
       container.appendChild(bg);
     }
 
-    currentDesign.elements.forEach(el => {
+    // Add only STATIC elements (shapes, images, non-placeholder text)
+    currentDesign.elements.filter(el => !isDynamic(el)).forEach(el => {
       const div = document.createElement('div');
       div.style.cssText   = 'position:absolute;';
       div.style.left      = el.x + 'px';
@@ -669,16 +671,14 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
       div.style.transform = `rotate(${el.rotate || 0}deg)`;
 
       if (!el.type || el.type === 'text') {
-        div.textContent      = resolveText(el.text || '', r);
+        div.textContent      = el.text || '';
         div.style.fontSize   = (el.size || 16) + 'px';
-        div.style.color      = el.color || '#ffffff';
+        div.style.color      = el.color || '#fff';
         div.style.fontWeight = el.fontWeight || 'bold';
         div.style.whiteSpace = 'nowrap';
         div.style.lineHeight = '1.1';
         let ff = '"Roboto","Helvetica Neue",Arial,sans-serif';
         if (el.font === 'Anton' || el.font === 'anton') ff = '"Anton",sans-serif';
-        if (el.font === 'times')   ff = '"Times New Roman",Times,serif';
-        if (el.font === 'courier') ff = '"Courier New",Courier,monospace';
         div.style.fontFamily = ff;
       } else if (el.type === 'rect') {
         div.style.width = (el.w||100)+'px'; div.style.height = (el.h||50)+'px';
@@ -708,29 +708,73 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
 
     wrapper.appendChild(container);
     document.body.appendChild(wrapper);
-    await new Promise(res => setTimeout(res, 60));
+    await new Promise(res => setTimeout(res, 120)); // wait for images
 
-    try {
-      const canvas = await html2canvas(container, {
-        width:  currentDesign.canvasWidth,
-        height: currentDesign.canvasHeight,
-        scale:  2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: currentDesign.bgImage ? null : '#1a202c',
-        logging: false
-      });
-      document.body.removeChild(wrapper);
-      return canvas.toDataURL('image/jpeg', 0.92);
-    } catch(err) {
-      document.body.removeChild(wrapper);
-      throw err;
-    }
+    baseCanvas = await html2canvas(container, {
+      width: W, height: H, scale: SCALE,
+      useCORS: true, allowTaint: true,
+      backgroundColor: currentDesign.bgImage ? null : '#1a202c',
+      logging: false
+    });
+    document.body.removeChild(wrapper);
+  } catch(err) {
+    if (overlay) overlay.style.display = 'none';
+    showToast('Failed to render ticket template.', 'error');
+    console.error(err);
+    return;
   }
 
+  // ── STEP 2: Per ticket — clone base canvas + draw dynamic text with Canvas 2D ─
+  // Canvas 2D uses browser-loaded fonts, so Cyrillic works perfectly here.
+  const dynamicEls = currentDesign.elements.filter(isDynamic);
+
+  function renderTicketFast(r) {
+    const canvas = document.createElement('canvas');
+    canvas.width  = W * SCALE;
+    canvas.height = H * SCALE;
+    const ctx = canvas.getContext('2d');
+
+    // Copy the pre-rendered base
+    ctx.drawImage(baseCanvas, 0, 0);
+
+    // Draw each dynamic text element
+    dynamicEls.forEach(el => {
+      const text  = resolveText(el.text || '', r);
+      const x     = parseInt(el.x) * SCALE;
+      const y     = parseInt(el.y) * SCALE;
+      const size  = (parseInt(el.size) || 16) * SCALE;
+      const alpha = el.opacity !== undefined ? el.opacity / 100 : 1;
+      const angle = (parseInt(el.rotate) || 0) * Math.PI / 180;
+
+      let family = '"Roboto","Helvetica Neue",Arial,sans-serif';
+      if (el.font === 'Anton' || el.font === 'anton') family = '"Anton",sans-serif';
+      if (el.font === 'times')   family = '"Times New Roman",Times,serif';
+      if (el.font === 'courier') family = '"Courier New",Courier,monospace';
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.font        = `${el.fontWeight || 'bold'} ${size}px ${family}`;
+      ctx.fillStyle   = el.color || '#ffffff';
+      ctx.textBaseline = 'top';
+
+      if (angle) {
+        // Rotate around the text origin
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+        ctx.fillText(text, 0, 0);
+      } else {
+        ctx.fillText(text, x, y);
+      }
+      ctx.restore();
+    });
+
+    return canvas.toDataURL('image/jpeg', 0.92);
+  }
+
+  // ── STEP 3: Assemble all tickets into the PDF ────────────────────────────────
   let success = 0;
   try {
-    for (let i = 0; i < ticketsToPrint.length; i++) {
+    for (let i = 0; i < total; i++) {
       const r = ticketsToPrint[i];
       if (i > 0 && i % ticketsPerPage === 0) doc.addPage();
 
@@ -745,7 +789,7 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
       }
 
       try {
-        const imgData = await renderTicketToImage(r);
+        const imgData = renderTicketFast(r); // synchronous — instant!
         doc.addImage(imgData, 'JPEG', 0, yPt, A4_WIDTH_PT, ticketHeightPt, undefined, 'FAST');
         success++;
         setProgress(success);
@@ -753,8 +797,8 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
         console.error('Ticket render failed:', r.ticket_id, err);
       }
 
-      // Yield to the browser so the UI stays responsive & overlay can repaint
-      await yield_();
+      // Yield every 10 tickets so the progress bar can update
+      if (i % 10 === 0) await yield_();
     }
 
     if (success === 0) {
@@ -764,10 +808,10 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
     doc.save(total === 1 ? 'Custom_Ticket.pdf' : 'All_Custom_Tickets.pdf');
     showToast(`Done! ${success}/${total} tickets generated.`, 'success');
   } finally {
-    // Always hide the overlay, even on error
     if (overlay) overlay.style.display = 'none';
   }
 }
+
 
 function printAllTickets() {
   if (!filteredData.length) {

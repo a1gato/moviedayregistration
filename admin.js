@@ -594,203 +594,153 @@ function downloadCurrentTicketDirectly(index) {
 }
 
 async function generateAndDownloadCustomPDF(ticketsToPrint) {
-  const { jsPDF } = window.jspdf;
-  
-  // Always create an A4 PDF
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'pt',
-    format: 'a4' // 595.28 x 841.89 pt
-  });
+  showToast('Generating PDF… please wait.', 'info');
 
-  try {
-    const res = await fetch('Anton-Regular.ttf');
-    const buffer = await res.arrayBuffer();
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    const base64 = window.btoa(binary);
-    doc.addFileToVFS('Anton.ttf', base64);
-    doc.addFont('Anton.ttf', 'Anton', 'normal');
-  } catch (e) {
-    console.warn("Could not load Anton font", e);
+  const { jsPDF } = window.jspdf;
+  const A4_WIDTH_PT  = 595.28;
+  const A4_HEIGHT_PT = 841.89;
+  const GAP_PT = 4;
+
+  const ticketHeightPt = (currentDesign.canvasHeight / currentDesign.canvasWidth) * A4_WIDTH_PT;
+  const ticketsPerPage = Math.max(1, Math.floor((A4_HEIGHT_PT + GAP_PT) / (ticketHeightPt + GAP_PT)));
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+
+  // Resolve placeholder tokens in text elements
+  function resolveText(text, r) {
+    const seat = r.seat || '';
+    const parts = seat.split('-');
+    const seatBlock = parts[0] || '—';
+    const seatRow   = parts[1] || '—';
+    const globalNum = seat ? (SEAT_NUMBERS[seat] || '—') : '—';
+    const seatStr   = seat ? formatSeatForDisplay(seat) : '—';
+    return text
+      .replace('{first_name}', r.first_name || '')
+      .replace('{last_name}',  r.last_name  || '')
+      .replace('{phone}',      r.phone      || '')
+      .replace('{branch}',     r.branch     || '')
+      .replace('{level}',      r.english_level || '')
+      .replace('{seat}',       seatStr)
+      .replace('{block}',      seatBlock)
+      .replace('{row}',        seatRow)
+      .replace('{seat_num}',   String(globalNum))
+      .replace('{ticket_id}',  r.ticket_id  || '');
   }
 
-  const A4_WIDTH = 595.28;
-  const A4_HEIGHT = 841.89;
-  const PADDING = 0; // No padding for edge-to-edge printing
+  // Render one ticket to a JPEG data-URL via html2canvas
+  async function renderTicketToImage(r) {
+    // Use a wrapper that is on-screen but invisible so fonts are applied
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = `position:fixed;top:0;left:0;z-index:-9999;opacity:0;pointer-events:none;overflow:hidden;width:${currentDesign.canvasWidth}px;height:${currentDesign.canvasHeight}px;`;
 
-  // Scale the custom ticket design to fit the A4 width exactly
-  const scale = (A4_WIDTH - PADDING * 2) / currentDesign.canvasWidth;
-  const ticketDrawWidth = currentDesign.canvasWidth * scale;
-  const ticketDrawHeight = currentDesign.canvasHeight * scale;
+    const container = document.createElement('div');
+    container.style.cssText = `position:relative;width:${currentDesign.canvasWidth}px;height:${currentDesign.canvasHeight}px;overflow:hidden;background:#1a202c;`;
 
-  // Calculate how many tickets fit on one A4 page without margins
-  const GAP = 4; // 4pt gap between tickets for cut lines
-  const ticketsPerPage = Math.max(1, Math.floor((A4_HEIGHT - PADDING * 2 + GAP) / (ticketDrawHeight + GAP)));
+    if (currentDesign.bgImage) {
+      const bg = document.createElement('img');
+      bg.src = currentDesign.bgImage;
+      bg.crossOrigin = 'anonymous';
+      bg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;';
+      container.appendChild(bg);
+    }
 
-  const imgType = currentDesign.bgImage && currentDesign.bgImage.includes('image/png') ? 'PNG' : 'JPEG';
+    currentDesign.elements.forEach(el => {
+      const div = document.createElement('div');
+      div.style.cssText = 'position:absolute;';
+      div.style.left      = el.x + 'px';
+      div.style.top       = el.y + 'px';
+      div.style.opacity   = el.opacity !== undefined ? (el.opacity / 100) : 1;
+      div.style.transform = `rotate(${el.rotate || 0}deg)`;
+
+      if (!el.type || el.type === 'text') {
+        div.textContent      = resolveText(el.text || '', r);
+        div.style.fontSize   = (el.size || 16) + 'px';
+        div.style.color      = el.color || '#ffffff';
+        div.style.fontWeight = el.fontWeight || 'bold';
+        div.style.whiteSpace = 'nowrap';
+        div.style.lineHeight = '1.1';
+        let ff = '"Roboto", "Helvetica Neue", Arial, sans-serif';
+        if (el.font === 'Anton' || el.font === 'anton') ff = '"Anton", sans-serif';
+        if (el.font === 'times')   ff = '"Times New Roman", Times, serif';
+        if (el.font === 'courier') ff = '"Courier New", Courier, monospace';
+        div.style.fontFamily = ff;
+      } else if (el.type === 'rect') {
+        div.style.width      = (el.w || 100) + 'px';
+        div.style.height     = (el.h || 50) + 'px';
+        div.style.background = el.color || '#ffffff';
+        div.style.border     = `${el.borderWidth || 0}px ${el.borderStyle || 'solid'} ${el.borderColor || '#000'}`;
+      } else if (el.type === 'circle') {
+        const d = (el.r || 40) * 2;
+        div.style.width        = d + 'px';
+        div.style.height       = d + 'px';
+        div.style.borderRadius = '50%';
+        div.style.background   = el.color || '#ffffff';
+        div.style.border       = `${el.borderWidth || 0}px ${el.borderStyle || 'solid'} ${el.borderColor || '#000'}`;
+      } else if (el.type === 'triangle') {
+        const svg  = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width',  el.w || 60);
+        svg.setAttribute('height', el.h || 60);
+        const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        poly.setAttribute('points', `${(el.w||60)/2},0 0,${el.h||60} ${el.w||60},${el.h||60}`);
+        poly.setAttribute('fill', el.color || '#ffffff');
+        svg.appendChild(poly);
+        div.appendChild(svg);
+      } else if (el.type === 'image') {
+        const img = document.createElement('img');
+        img.src          = el.url;
+        img.crossOrigin  = 'anonymous';
+        img.style.cssText = `width:${el.w||100}px;height:${el.h||100}px;object-fit:contain;`;
+        div.appendChild(img);
+      }
+      container.appendChild(div);
+    });
+
+    wrapper.appendChild(container);
+    document.body.appendChild(wrapper);
+
+    // Ensure all web fonts (including Cyrillic Roboto) are loaded
+    await document.fonts.ready;
+    await new Promise(res => setTimeout(res, 350));
+
+    const canvas = await html2canvas(container, {
+      width:           currentDesign.canvasWidth,
+      height:          currentDesign.canvasHeight,
+      scale:           2,
+      useCORS:         true,
+      allowTaint:      true,
+      backgroundColor: currentDesign.bgImage ? null : '#1a202c',
+      logging:         false,
+      onclone: (clonedDoc) => {
+        const style = clonedDoc.createElement('style');
+        style.textContent = `@import url('https://fonts.googleapis.com/css2?family=Anton&family=Roboto:wght@400;700&display=swap');`;
+        clonedDoc.head.appendChild(style);
+      }
+    });
+
+    document.body.removeChild(wrapper);
+    return canvas.toDataURL('image/jpeg', 0.95);
+  }
 
   for (let i = 0; i < ticketsToPrint.length; i++) {
     const r = ticketsToPrint[i];
-    
-    // If we filled a page, add a new one
-    if (i > 0 && i % ticketsPerPage === 0) {
-      doc.addPage();
-    }
-    
-    // Calculate Y offset for this specific ticket on the page
-    const positionOnPage = i % ticketsPerPage;
-    const startY = PADDING + positionOnPage * (ticketDrawHeight + GAP);
-    const startX = PADDING;
+    if (i > 0 && i % ticketsPerPage === 0) doc.addPage();
 
-    // Draw a cut line between tickets on the same page
-    if (positionOnPage > 0) {
-      doc.setDrawColor(150, 150, 150);
-      doc.setLineWidth(1);
-      doc.setLineDash([10, 5], 0);
-      const cutY = startY - (GAP / 2);
-      doc.line(0, cutY, A4_WIDTH, cutY);
-      doc.setLineDash([], 0); // reset
+    const posOnPage = i % ticketsPerPage;
+    const yPt = posOnPage * (ticketHeightPt + GAP_PT);
+
+    if (posOnPage > 0) {
+      doc.setDrawColor(160, 160, 160);
+      doc.setLineWidth(0.5);
+      doc.setLineDash([8, 4], 0);
+      doc.line(0, yPt - GAP_PT / 2, A4_WIDTH_PT, yPt - GAP_PT / 2);
+      doc.setLineDash([], 0);
     }
 
-    // Draw background image or solid color for this ticket (acts as a mask for previous ticket overflow)
-    if (currentDesign.bgImage) {
-      doc.addImage(currentDesign.bgImage, imgType, startX, startY, ticketDrawWidth, ticketDrawHeight);
-    } else {
-      doc.setFillColor(26, 32, 44); // Match the dark UI background
-      doc.rect(startX, startY, ticketDrawWidth, ticketDrawHeight, 'F');
+    try {
+      const imgData = await renderTicketToImage(r);
+      doc.addImage(imgData, 'JPEG', 0, yPt, A4_WIDTH_PT, ticketHeightPt, undefined, 'FAST');
+    } catch (err) {
+      console.error('Ticket render failed for', r, err);
     }
-    
-    // Draw text and shape elements
-    currentDesign.elements.forEach(el => {
-         const xPos = startX + (parseInt(el.x) * scale);
-         const yPos = startY + (parseInt(el.y) * scale);
-
-         // Apply Opacity
-         if (el.opacity !== undefined) {
-             const op = el.opacity / 100;
-             if (window.jspdf && window.jspdf.GState) {
-                 doc.setGState(new window.jspdf.GState({opacity: op}));
-             }
-         }
-
-         if (!el.type || el.type === 'text') {
-             let text = el.text;
-             let seatStr = r.seat ? formatSeatForDisplay(r.seat) : '—';
-             const globalSeatNum = r.seat ? (SEAT_NUMBERS[r.seat] || '—') : '—';
-             let seatBlock = '—', seatRow = '—', seatNum = String(globalSeatNum);
-             if (r.seat) {
-                 const parts = r.seat.split('-');
-                 if (parts.length >= 3) {
-                     seatBlock = parts[0];
-                     seatRow = parts[1];
-                 } else {
-                     seatBlock = r.seat;
-                 }
-             }
-
-             text = text.replace('{first_name}', r.first_name || '');
-             text = text.replace('{last_name}', r.last_name || '');
-             text = text.replace('{phone}', r.phone || '');
-             text = text.replace('{branch}', r.branch || '');
-             text = text.replace('{level}', r.english_level || '');
-             text = text.replace('{seat}', seatStr);
-             text = text.replace('{block}', seatBlock);
-             text = text.replace('{row}', seatRow);
-             text = text.replace('{seat_num}', seatNum);
-             text = text.replace('{ticket_id}', r.ticket_id || '');
-             
-             // Convert hex color to rgb
-             let rColor = 255, gColor = 255, bColor = 255;
-             if (el.color && el.color.startsWith('#') && el.color.length === 7) {
-                 rColor = parseInt(el.color.slice(1, 3), 16);
-                 gColor = parseInt(el.color.slice(3, 5), 16);
-                 bColor = parseInt(el.color.slice(5, 7), 16);
-             }
-             
-             doc.setTextColor(rColor, gColor, bColor);
-             
-             const fontName = el.font || 'helvetica';
-             const fontStyle = (fontName === 'Anton' || fontName === 'anton') ? 'normal' : (el.fontWeight || 'bold');
-             doc.setFont(fontName, fontStyle);
-             
-             // Scale font size
-             const scaledFontSize = parseInt(el.size) * scale;
-             doc.setFontSize(scaledFontSize);
-             
-             // Text requires an additional Y offset for baseline
-             const textYPos = yPos + (scaledFontSize * 0.85);
-             doc.text(text, xPos, textYPos, { angle: -parseInt(el.rotate) || 0 });
-         } else {
-             // SHAPES
-             let rColor = 255, gColor = 255, bColor = 255;
-             if (el.color && el.color.startsWith('#')) {
-                 rColor = parseInt(el.color.slice(1, 3), 16);
-                 gColor = parseInt(el.color.slice(3, 5), 16);
-                 bColor = parseInt(el.color.slice(5, 7), 16);
-             }
-             let style = 'F';
-             doc.setFillColor(rColor, gColor, bColor);
-             
-             if (el.borderWidth > 0) {
-                 style = 'DF';
-                 let brColor = 0, bgColor = 0, bbColor = 0;
-                 if (el.borderColor && el.borderColor.startsWith('#')) {
-                     brColor = parseInt(el.borderColor.slice(1, 3), 16);
-                     bgColor = parseInt(el.borderColor.slice(3, 5), 16);
-                     bbColor = parseInt(el.borderColor.slice(5, 7), 16);
-                 }
-                 doc.setDrawColor(brColor, bgColor, bbColor);
-                 doc.setLineWidth(el.borderWidth * scale);
-                 
-                 if (el.borderStyle === 'dashed') {
-                     doc.setLineDash([5 * scale, 5 * scale], 0);
-                 } else {
-                     doc.setLineDash([], 0); // Solid
-                 }
-             } else {
-                 doc.setLineDash([], 0); // Reset to solid if no border
-             }
-             
-             if (el.type === 'rect') {
-                 doc.rect(xPos, yPos, el.w * scale, el.h * scale, style);
-             } else if (el.type === 'circle') {
-                 // jsPDF circle uses center coordinates
-                 const cx = xPos + (el.r * scale);
-                 const cy = yPos + (el.r * scale);
-                 doc.circle(cx, cy, el.r * scale, style);
-             } else if (el.type === 'triangle') {
-                 doc.triangle(
-                     xPos + (el.w/2)*scale, yPos,
-                     xPos, yPos + el.h*scale,
-                     xPos + el.w*scale, yPos + el.h*scale,
-                     style
-                 );
-             } else if (el.type === 'image') {
-                 const imgType = el.url.startsWith('data:image/png') ? 'PNG' : 'JPEG';
-                 doc.addImage(el.url, imgType, xPos, yPos, el.w * scale, el.h * scale, undefined, 'FAST', -parseInt(el.rotate) || 0);
-             }
-         }
-         
-         // Reset Opacity
-         if (el.opacity !== undefined) {
-             if (window.jspdf && window.jspdf.GState) {
-                 doc.setGState(new window.jspdf.GState({opacity: 1.0}));
-             }
-         }
-     });
-     
-     // Draw a massive white mask below the ticket if it's the last ticket on the page
-     // to perfectly "crop" any elements that overflow downward off the ticket boundary.
-     if (positionOnPage === ticketsPerPage - 1 || i === ticketsToPrint.length - 1) {
-         const bottomOfTicket = startY + ticketDrawHeight;
-         doc.setFillColor(255, 255, 255);
-         doc.rect(0, bottomOfTicket, A4_WIDTH, A4_HEIGHT - bottomOfTicket, 'F');
-     }
   }
 
   doc.save(ticketsToPrint.length === 1 ? 'Custom_Ticket.pdf' : 'All_Custom_Tickets.pdf');
@@ -810,12 +760,12 @@ function printSingleCustomTicket(index) {
   if (!r) {
     // Provide dummy data so Test Print works even if no one is registered yet!
     r = {
-      first_name: "Alice",
-      last_name: "Smith",
+      first_name: "Александр",
+      last_name: "Иванов",
       phone: "+998 90 123 45 67",
-      branch: "Main Branch",
+      branch: "Fast Education",
       english_level: "Advanced",
-      seat: "A1-1",
+      seat: "C3-2-3",
       ticket_id: "TKT-TEST-001"
     };
   }
@@ -871,7 +821,7 @@ const DEFAULT_DESIGN = {
         { id: 'thynk_text', label: 'Thynk Unlimited', text: 'THYNK UNLIMITED', x: 12, y: 125, size: 7, color: '#a1a1a6', rotate: 90, font: 'Anton', fontWeight: 'bold' },
         { id: 'title_jumanji', label: 'Title (Jumanji)', text: 'JUMANJI', x: 42, y: 15, size: 54, color: '#ffffff', rotate: 0, font: 'Anton', fontWeight: 'bold' },
         { id: 'sub_solo', label: 'Subtitle', text: 'SOLO CONCERT', x: 42, y: 80, size: 14, color: '#ffffff', rotate: 0, font: 'Anton', fontWeight: 'bold' },
-        { id: 'attendee_name', label: 'Attendee Name', text: '{first_name} {last_name}', x: 42, y: 110, size: 13, color: '#a855f7', rotate: 0, font: 'Anton', fontWeight: 'bold' },
+        { id: 'attendee_name', label: 'Attendee Name', text: '{first_name} {last_name}', x: 42, y: 110, size: 13, color: '#a855f7', rotate: 0, font: 'Roboto', fontWeight: 'bold' },
         
         { id: 'gate_lbl', label: 'Column Label', text: 'COLUMN', x: 42, y: 150, size: 8, color: '#a1a1a6', rotate: 0, font: 'Anton', fontWeight: 'bold' },
         { id: 'gate_val', label: 'Column Value', text: '{block}', x: 42, y: 168, size: 24, color: '#ffffff', rotate: 0, font: 'Anton', fontWeight: 'bold' },
@@ -910,6 +860,16 @@ const DEFAULT_DESIGN = {
 };
 
 let currentDesign = JSON.parse(localStorage.getItem('ticketDesign')) || JSON.parse(JSON.stringify(DEFAULT_DESIGN));
+
+// Migration: Ensure existing designs switch attendee_name to Roboto for Cyrillic compatibility
+if (currentDesign && currentDesign.elements) {
+    const nameEl = currentDesign.elements.find(e => e.id === 'attendee_name');
+    if (nameEl && (nameEl.font === 'Anton' || nameEl.font === 'anton')) {
+        nameEl.font = 'Roboto';
+        try { localStorage.setItem('ticketDesign', JSON.stringify(currentDesign)); } catch(e){}
+    }
+}
+
 let activeElementId = null;
 
 let designHistory = [];
@@ -1060,6 +1020,7 @@ function renderDesignerElements() {
             if (el.font === 'times') fontFamily = '"Times New Roman", Times, serif';
             if (el.font === 'courier') fontFamily = '"Courier New", Courier, monospace';
             if (el.font === 'Anton' || el.font === 'anton') fontFamily = '"Anton", sans-serif';
+            if (el.font === 'Roboto' || el.font === 'roboto') fontFamily = '"Roboto", sans-serif';
             div.style.fontFamily = fontFamily;
             div.style.fontWeight = el.fontWeight === 'normal' || el.fontWeight === 'italic' ? 'normal' : 'bold';
             div.style.fontStyle = el.fontWeight === 'italic' ? 'italic' : 'normal';
@@ -1335,6 +1296,7 @@ function renderDesignerControls() {
                         <option value="times" ${el.font === 'times' ? 'selected' : ''}>Times</option>
                         <option value="courier" ${el.font === 'courier' ? 'selected' : ''}>Courier</option>
                         <option value="Anton" ${el.font === 'Anton' || el.font === 'anton' ? 'selected' : ''}>Anton</option>
+                        <option value="Roboto" ${el.font === 'Roboto' || el.font === 'roboto' ? 'selected' : ''}>Roboto</option>
                     </select>
                 </div>
                 <div class="control-group">

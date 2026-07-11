@@ -594,18 +594,24 @@ function downloadCurrentTicketDirectly(index) {
 }
 
 async function generateAndDownloadCustomPDF(ticketsToPrint) {
-  showToast('Generating PDF… please wait.', 'info');
+  if (typeof html2canvas === 'undefined') {
+    showToast('Error: html2canvas not loaded. Check internet connection.', 'error');
+    return;
+  }
+
+  showToast(`Generating ${ticketsToPrint.length} ticket(s)… please wait.`, 'info');
 
   const { jsPDF } = window.jspdf;
   const A4_WIDTH_PT  = 595.28;
   const A4_HEIGHT_PT = 841.89;
   const GAP_PT = 4;
-
   const ticketHeightPt = (currentDesign.canvasHeight / currentDesign.canvasWidth) * A4_WIDTH_PT;
   const ticketsPerPage = Math.max(1, Math.floor((A4_HEIGHT_PT + GAP_PT) / (ticketHeightPt + GAP_PT)));
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
 
-  // Resolve placeholder tokens in text elements
+  // Wait for fonts ONCE upfront
+  await document.fonts.ready;
+
   function resolveText(text, r) {
     const seat = r.seat || '';
     const parts = seat.split('-');
@@ -626,14 +632,12 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
       .replace('{ticket_id}',  r.ticket_id  || '');
   }
 
-  // Render one ticket to a JPEG data-URL via html2canvas
   async function renderTicketToImage(r) {
-    // Use a wrapper that is on-screen but invisible so fonts are applied
     const wrapper = document.createElement('div');
     wrapper.style.cssText = `position:fixed;top:0;left:0;z-index:-9999;opacity:0;pointer-events:none;overflow:hidden;width:${currentDesign.canvasWidth}px;height:${currentDesign.canvasHeight}px;`;
 
     const container = document.createElement('div');
-    container.style.cssText = `position:relative;width:${currentDesign.canvasWidth}px;height:${currentDesign.canvasHeight}px;overflow:hidden;background:#1a202c;`;
+    container.style.cssText = `position:relative;width:${currentDesign.canvasWidth}px;height:${currentDesign.canvasHeight}px;overflow:hidden;background:#1a202c;font-family:"Roboto","Helvetica Neue",Arial,sans-serif;`;
 
     if (currentDesign.bgImage) {
       const bg = document.createElement('img');
@@ -645,7 +649,7 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
 
     currentDesign.elements.forEach(el => {
       const div = document.createElement('div');
-      div.style.cssText = 'position:absolute;';
+      div.style.cssText   = 'position:absolute;';
       div.style.left      = el.x + 'px';
       div.style.top       = el.y + 'px';
       div.style.opacity   = el.opacity !== undefined ? (el.opacity / 100) : 1;
@@ -658,36 +662,31 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
         div.style.fontWeight = el.fontWeight || 'bold';
         div.style.whiteSpace = 'nowrap';
         div.style.lineHeight = '1.1';
-        let ff = '"Roboto", "Helvetica Neue", Arial, sans-serif';
-        if (el.font === 'Anton' || el.font === 'anton') ff = '"Anton", sans-serif';
-        if (el.font === 'times')   ff = '"Times New Roman", Times, serif';
-        if (el.font === 'courier') ff = '"Courier New", Courier, monospace';
+        let ff = '"Roboto","Helvetica Neue",Arial,sans-serif';
+        if (el.font === 'Anton' || el.font === 'anton') ff = '"Anton",sans-serif';
+        if (el.font === 'times')   ff = '"Times New Roman",Times,serif';
+        if (el.font === 'courier') ff = '"Courier New",Courier,monospace';
         div.style.fontFamily = ff;
       } else if (el.type === 'rect') {
-        div.style.width      = (el.w || 100) + 'px';
-        div.style.height     = (el.h || 50) + 'px';
-        div.style.background = el.color || '#ffffff';
-        div.style.border     = `${el.borderWidth || 0}px ${el.borderStyle || 'solid'} ${el.borderColor || '#000'}`;
+        div.style.width = (el.w||100)+'px'; div.style.height = (el.h||50)+'px';
+        div.style.background = el.color||'#fff';
+        div.style.border = `${el.borderWidth||0}px ${el.borderStyle||'solid'} ${el.borderColor||'#000'}`;
       } else if (el.type === 'circle') {
-        const d = (el.r || 40) * 2;
-        div.style.width        = d + 'px';
-        div.style.height       = d + 'px';
+        const d = (el.r||40)*2;
+        div.style.width = d+'px'; div.style.height = d+'px';
         div.style.borderRadius = '50%';
-        div.style.background   = el.color || '#ffffff';
-        div.style.border       = `${el.borderWidth || 0}px ${el.borderStyle || 'solid'} ${el.borderColor || '#000'}`;
+        div.style.background = el.color||'#fff';
+        div.style.border = `${el.borderWidth||0}px ${el.borderStyle||'solid'} ${el.borderColor||'#000'}`;
       } else if (el.type === 'triangle') {
-        const svg  = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('width',  el.w || 60);
-        svg.setAttribute('height', el.h || 60);
-        const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-        poly.setAttribute('points', `${(el.w||60)/2},0 0,${el.h||60} ${el.w||60},${el.h||60}`);
-        poly.setAttribute('fill', el.color || '#ffffff');
-        svg.appendChild(poly);
-        div.appendChild(svg);
+        const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+        svg.setAttribute('width', el.w||60); svg.setAttribute('height', el.h||60);
+        const poly = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+        poly.setAttribute('points',`${(el.w||60)/2},0 0,${el.h||60} ${el.w||60},${el.h||60}`);
+        poly.setAttribute('fill', el.color||'#fff');
+        svg.appendChild(poly); div.appendChild(svg);
       } else if (el.type === 'image') {
         const img = document.createElement('img');
-        img.src          = el.url;
-        img.crossOrigin  = 'anonymous';
+        img.src = el.url; img.crossOrigin = 'anonymous';
         img.style.cssText = `width:${el.w||100}px;height:${el.h||100}px;object-fit:contain;`;
         div.appendChild(img);
       }
@@ -696,30 +695,27 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
 
     wrapper.appendChild(container);
     document.body.appendChild(wrapper);
+    await new Promise(res => setTimeout(res, 80));
 
-    // Ensure all web fonts (including Cyrillic Roboto) are loaded
-    await document.fonts.ready;
-    await new Promise(res => setTimeout(res, 350));
-
-    const canvas = await html2canvas(container, {
-      width:           currentDesign.canvasWidth,
-      height:          currentDesign.canvasHeight,
-      scale:           2,
-      useCORS:         true,
-      allowTaint:      true,
-      backgroundColor: currentDesign.bgImage ? null : '#1a202c',
-      logging:         false,
-      onclone: (clonedDoc) => {
-        const style = clonedDoc.createElement('style');
-        style.textContent = `@import url('https://fonts.googleapis.com/css2?family=Anton&family=Roboto:wght@400;700&display=swap');`;
-        clonedDoc.head.appendChild(style);
-      }
-    });
-
-    document.body.removeChild(wrapper);
-    return canvas.toDataURL('image/jpeg', 0.95);
+    try {
+      const canvas = await html2canvas(container, {
+        width:  currentDesign.canvasWidth,
+        height: currentDesign.canvasHeight,
+        scale:  2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: currentDesign.bgImage ? null : '#1a202c',
+        logging: false
+      });
+      document.body.removeChild(wrapper);
+      return canvas.toDataURL('image/jpeg', 0.92);
+    } catch(err) {
+      document.body.removeChild(wrapper);
+      throw err;
+    }
   }
 
+  let success = 0;
   for (let i = 0; i < ticketsToPrint.length; i++) {
     const r = ticketsToPrint[i];
     if (i > 0 && i % ticketsPerPage === 0) doc.addPage();
@@ -728,23 +724,30 @@ async function generateAndDownloadCustomPDF(ticketsToPrint) {
     const yPt = posOnPage * (ticketHeightPt + GAP_PT);
 
     if (posOnPage > 0) {
-      doc.setDrawColor(160, 160, 160);
-      doc.setLineWidth(0.5);
-      doc.setLineDash([8, 4], 0);
-      doc.line(0, yPt - GAP_PT / 2, A4_WIDTH_PT, yPt - GAP_PT / 2);
-      doc.setLineDash([], 0);
+      doc.setDrawColor(160,160,160); doc.setLineWidth(0.5);
+      doc.setLineDash([8,4],0);
+      doc.line(0, yPt - GAP_PT/2, A4_WIDTH_PT, yPt - GAP_PT/2);
+      doc.setLineDash([],0);
     }
 
     try {
       const imgData = await renderTicketToImage(r);
       doc.addImage(imgData, 'JPEG', 0, yPt, A4_WIDTH_PT, ticketHeightPt, undefined, 'FAST');
-    } catch (err) {
-      console.error('Ticket render failed for', r, err);
+      success++;
+      if (ticketsToPrint.length > 5 && (i+1) % 5 === 0) {
+        showToast(`Progress: ${i+1}/${ticketsToPrint.length} tickets rendered…`, 'info');
+      }
+    } catch(err) {
+      console.error('Ticket render failed:', r.ticket_id, err);
     }
   }
 
+  if (success === 0) {
+    showToast('PDF generation failed. Check browser console for errors.', 'error');
+    return;
+  }
   doc.save(ticketsToPrint.length === 1 ? 'Custom_Ticket.pdf' : 'All_Custom_Tickets.pdf');
-  showToast('PDF generated successfully!', 'success');
+  showToast(`Done! ${success}/${ticketsToPrint.length} tickets generated.`, 'success');
 }
 
 function printAllTickets() {
